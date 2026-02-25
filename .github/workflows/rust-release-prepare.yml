@@ -15,7 +15,7 @@ permissions:
 jobs:
   prepare:
     # Prevent scheduled runs on forks (no secrets, wastes Actions minutes)
-    if: github.repository == 'openai/codex'
+    if: contains(fromJson('["openai/codex","getkawai/kawai-code"]'), github.repository)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -25,9 +25,14 @@ jobs:
 
       - name: Update models.json
         env:
-          OPENAI_API_KEY: ${{ secrets.CODEX_OPENAI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.CODEX_OPENAI_API_KEY || secrets.OPENAI_API_KEY }}
         run: |
           set -euo pipefail
+
+          if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+            echo "OPENAI_API_KEY is not configured; skipping models.json refresh."
+            exit 0
+          fi
 
           client_version="99.99.99"
           terminal_info="github-actions"
