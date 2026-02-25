@@ -27,23 +27,22 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # stage_npm_packages.py requires DotSlash when staging releases.
-      - uses: facebook/install-dotslash@v2
-
       - name: Stage npm package
         id: stage_npm_package
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          # Use a rust-release version that includes all native binaries.
+          # Validate packaging for the meta package only; native platform artifacts are
+          # validated in release workflows where prebuilt binaries are available.
           CODEX_VERSION=0.74.0
           OUTPUT_DIR="${RUNNER_TEMP}"
-          python3 ./scripts/stage_npm_packages.py \
+          STAGING_DIR="${OUTPUT_DIR}/codex-npm-stage"
+          PACK_OUTPUT="${OUTPUT_DIR}/codex-npm-${CODEX_VERSION}.tgz"
+          rm -rf "$STAGING_DIR"
+          python3 ./codex-cli/scripts/build_npm_package.py \
             --release-version "$CODEX_VERSION" \
             --package codex \
-            --output-dir "$OUTPUT_DIR"
-          PACK_OUTPUT="${OUTPUT_DIR}/codex-npm-${CODEX_VERSION}.tgz"
+            --staging-dir "$STAGING_DIR" \
+            --pack-output "$PACK_OUTPUT"
           echo "pack_output=$PACK_OUTPUT" >> "$GITHUB_OUTPUT"
 
       - name: Upload staged npm package artifact
