@@ -90,7 +90,7 @@ jobs:
     timeout-minutes: 30
     needs: changed
     # Keep job-level if to avoid spinning up runners when not needed
-    if: ${{ (needs.changed.outputs.codex == 'true' || needs.changed.outputs.workflows == 'true' || github.event_name == 'push') && (github.repository == 'openai/codex' || matrix.openai_only != true) }}
+    if: ${{ needs.changed.outputs.codex == 'true' || needs.changed.outputs.workflows == 'true' || github.event_name == 'push' }}
     defaults:
       run:
         working-directory: codex-rs
@@ -151,7 +151,6 @@ jobs:
               labels: codex-windows-x64
           - runner: windows-arm64
             github_runner: windows-11-arm
-            openai_only: true
             target: aarch64-pc-windows-msvc
             profile: dev
             runs_on:
@@ -189,7 +188,6 @@ jobs:
               labels: codex-windows-x64
           - runner: windows-arm64
             github_runner: windows-11-arm
-            openai_only: true
             target: aarch64-pc-windows-msvc
             profile: release
             runs_on:
@@ -470,7 +468,7 @@ jobs:
     runs-on: ${{ matrix.github_runner }}
     timeout-minutes: 30
     needs: changed
-    if: ${{ (needs.changed.outputs.codex == 'true' || needs.changed.outputs.workflows == 'true' || github.event_name == 'push') && (github.repository == 'openai/codex' || matrix.openai_only != true) }}
+    if: ${{ needs.changed.outputs.codex == 'true' || needs.changed.outputs.workflows == 'true' || github.event_name == 'push' }}
     defaults:
       run:
         working-directory: codex-rs
@@ -511,7 +509,6 @@ jobs:
               labels: codex-windows-x64
           - runner: windows-arm64
             github_runner: windows-11-arm
-            openai_only: true
             target: aarch64-pc-windows-msvc
             profile: dev
             runs_on:
