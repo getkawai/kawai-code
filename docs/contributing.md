@@ -91,6 +91,10 @@ All contributors **must** accept the CLA. The process is lightweight:
 
 3. The CLA-Assistant bot records your signature in the repo and marks the status check as passed.
 
+Operational note: the CLA workflow will create the `cla-signatures` branch automatically
+if it does not already exist, so first-time setup in rebranded/forked canonical repos does
+not require manual branch bootstrapping.
+
 No special Git commands, email attachments, or commit footers required.
 
 ### Security & responsible AI

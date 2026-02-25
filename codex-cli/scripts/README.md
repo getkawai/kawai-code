@@ -18,6 +18,13 @@ When `--package codex` is provided, the staging helper builds the lightweight
 `@openai/codex` meta package plus all platform-native `@openai/codex` variants
 that are later published under platform-specific dist-tags.
 
+The release workflow lookup is repository-aware:
+
+- By default it uses `GITHUB_REPOSITORY` (falls back to `getkawai/kawai-code` when unset).
+- It first looks for a run on branch `rust-v<release-version>`.
+- If that branch does not exist (common in forks/rebranded repos), it falls back to the
+  latest successful `rust-release` workflow run.
+
 If you need to invoke `build_npm_package.py` directly, run
 `codex-cli/scripts/install_native_deps.py` first and pass `--vendor-src` pointing to the
 directory that contains the populated `vendor/` tree.
