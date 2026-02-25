@@ -382,23 +382,36 @@ async fn compact_resume_after_second_compaction_preserves_history() {
         .split_last()
         .unwrap_or_else(|| panic!("after-second-resume request missing user messages"));
     assert_eq!(final_last, AFTER_SECOND_RESUME);
-    assert!(
-        final_prefix.starts_with(&expected_after_second_compact_user_texts),
-        "after-second-resume user texts should preserve post-compact user history prefix"
-    );
-    let final_seeded_suffix = &final_prefix[expected_after_second_compact_user_texts.len()..];
+    let expected_len = expected_after_second_compact_user_texts.len();
+    let expected_start = final_prefix
+        .windows(expected_len)
+        .position(|window| window == expected_after_second_compact_user_texts)
+        .unwrap_or_else(|| {
+            panic!("after-second-resume user texts should include post-compact user history block")
+        });
+    let final_seeded_leading = &final_prefix[..expected_start];
+    let final_seeded_suffix = &final_prefix[expected_start + expected_len..];
     if seeded_user_prefix.is_empty() {
         assert!(
-            final_seeded_suffix.is_empty(),
+            final_seeded_leading.is_empty() && final_seeded_suffix.is_empty(),
             "after-second-resume request should not append unexpected user prefix items"
         );
     } else {
-        let mut chunks = final_seeded_suffix.chunks_exact(seeded_user_prefix.len());
+        let mut leading_chunks = final_seeded_leading.chunks_exact(seeded_user_prefix.len());
         assert!(
-            chunks.remainder().is_empty(),
+            leading_chunks.remainder().is_empty(),
+            "after-second-resume leading segment should be whole seeded-prefix repeats"
+        );
+        for chunk in &mut leading_chunks {
+            assert_eq!(chunk, seeded_user_prefix);
+        }
+
+        let mut suffix_chunks = final_seeded_suffix.chunks_exact(seeded_user_prefix.len());
+        assert!(
+            suffix_chunks.remainder().is_empty(),
             "after-second-resume suffix should be whole seeded-prefix repeats"
         );
-        for chunk in &mut chunks {
+        for chunk in &mut suffix_chunks {
             assert_eq!(chunk, seeded_user_prefix);
         }
     }

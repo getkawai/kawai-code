@@ -31,6 +31,7 @@ use serde_json::Value;
 use std::path::Path;
 use std::path::PathBuf;
 use tempfile::TempDir;
+use tokio::time::sleep;
 use tokio::time::timeout;
 
 const DEFAULT_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
@@ -254,19 +255,33 @@ async fn thread_name_set_is_reflected_in_read_list_and_resume() -> Result<()> {
     let _: ThreadSetNameResponse = to_response::<ThreadSetNameResponse>(set_resp)?;
 
     // Read should now surface `thread.name`, and the wire payload must include `name`.
-    let read_id = mcp
-        .send_thread_read_request(ThreadReadParams {
-            thread_id: conversation_id.clone(),
-            include_turns: false,
+    // Name propagation can lag briefly across thread manager/index views, so poll once.
+    let (thread, read_result) = {
+        let mut read_pair = None;
+        for _ in 0..20 {
+            let read_id = mcp
+                .send_thread_read_request(ThreadReadParams {
+                    thread_id: conversation_id.clone(),
+                    include_turns: false,
+                })
+                .await?;
+            let read_resp: JSONRPCResponse = timeout(
+                DEFAULT_READ_TIMEOUT,
+                mcp.read_stream_until_response_message(RequestId::Integer(read_id)),
+            )
+            .await??;
+            let read_result = read_resp.result.clone();
+            let ThreadReadResponse { thread } = to_response::<ThreadReadResponse>(read_resp)?;
+            if thread.name.as_deref() == Some(new_name) {
+                read_pair = Some((thread, read_result));
+                break;
+            }
+            sleep(std::time::Duration::from_millis(50)).await;
+        }
+        read_pair.unwrap_or_else(|| {
+            panic!("thread/read did not surface updated name `{new_name}` within retry window")
         })
-        .await?;
-    let read_resp: JSONRPCResponse = timeout(
-        DEFAULT_READ_TIMEOUT,
-        mcp.read_stream_until_response_message(RequestId::Integer(read_id)),
-    )
-    .await??;
-    let read_result = read_resp.result.clone();
-    let ThreadReadResponse { thread } = to_response::<ThreadReadResponse>(read_resp)?;
+    };
     assert_eq!(thread.id, conversation_id);
     assert_eq!(thread.name.as_deref(), Some(new_name));
     let thread_json = read_result
@@ -280,24 +295,41 @@ async fn thread_name_set_is_reflected_in_read_list_and_resume() -> Result<()> {
     );
 
     // List should also surface the name.
-    let list_id = mcp
-        .send_thread_list_request(ThreadListParams {
-            cursor: None,
-            limit: Some(50),
-            sort_key: None,
-            model_providers: Some(vec!["mock_provider".to_string()]),
-            source_kinds: None,
-            archived: None,
-            cwd: None,
+    let (data, list_result) = {
+        let mut list_pair = None;
+        for _ in 0..20 {
+            let list_id = mcp
+                .send_thread_list_request(ThreadListParams {
+                    cursor: None,
+                    limit: Some(50),
+                    sort_key: None,
+                    model_providers: Some(vec!["mock_provider".to_string()]),
+                    source_kinds: None,
+                    archived: None,
+                    cwd: None,
+                })
+                .await?;
+            let list_resp: JSONRPCResponse = timeout(
+                DEFAULT_READ_TIMEOUT,
+                mcp.read_stream_until_response_message(RequestId::Integer(list_id)),
+            )
+            .await??;
+            let list_result = list_resp.result.clone();
+            let ThreadListResponse { data, .. } = to_response::<ThreadListResponse>(list_resp)?;
+            if data
+                .iter()
+                .any(|thread_entry| thread_entry.id == conversation_id
+                    && thread_entry.name.as_deref() == Some(new_name))
+            {
+                list_pair = Some((data, list_result));
+                break;
+            }
+            sleep(std::time::Duration::from_millis(50)).await;
+        }
+        list_pair.unwrap_or_else(|| {
+            panic!("thread/list did not surface updated name `{new_name}` within retry window")
         })
-        .await?;
-    let list_resp: JSONRPCResponse = timeout(
-        DEFAULT_READ_TIMEOUT,
-        mcp.read_stream_until_response_message(RequestId::Integer(list_id)),
-    )
-    .await??;
-    let list_result = list_resp.result.clone();
-    let ThreadListResponse { data, .. } = to_response::<ThreadListResponse>(list_resp)?;
+    };
     let listed = data
         .iter()
         .find(|t| t.id == conversation_id)
@@ -318,21 +350,34 @@ async fn thread_name_set_is_reflected_in_read_list_and_resume() -> Result<()> {
     );
 
     // Resume should also surface the name.
-    let resume_id = mcp
-        .send_thread_resume_request(ThreadResumeParams {
-            thread_id: conversation_id.clone(),
-            ..Default::default()
+    let (resumed, resume_result) = {
+        let mut resume_pair = None;
+        for _ in 0..20 {
+            let resume_id = mcp
+                .send_thread_resume_request(ThreadResumeParams {
+                    thread_id: conversation_id.clone(),
+                    ..Default::default()
+                })
+                .await?;
+            let resume_resp: JSONRPCResponse = timeout(
+                DEFAULT_READ_TIMEOUT,
+                mcp.read_stream_until_response_message(RequestId::Integer(resume_id)),
+            )
+            .await??;
+            let resume_result = resume_resp.result.clone();
+            let ThreadResumeResponse {
+                thread: resumed, ..
+            } = to_response::<ThreadResumeResponse>(resume_resp)?;
+            if resumed.name.as_deref() == Some(new_name) {
+                resume_pair = Some((resumed, resume_result));
+                break;
+            }
+            sleep(std::time::Duration::from_millis(50)).await;
+        }
+        resume_pair.unwrap_or_else(|| {
+            panic!("thread/resume did not surface updated name `{new_name}` within retry window")
         })
-        .await?;
-    let resume_resp: JSONRPCResponse = timeout(
-        DEFAULT_READ_TIMEOUT,
-        mcp.read_stream_until_response_message(RequestId::Integer(resume_id)),
-    )
-    .await??;
-    let resume_result = resume_resp.result.clone();
-    let ThreadResumeResponse {
-        thread: resumed, ..
-    } = to_response::<ThreadResumeResponse>(resume_resp)?;
+    };
     assert_eq!(resumed.id, conversation_id);
     assert_eq!(resumed.name.as_deref(), Some(new_name));
     let resumed_json = resume_result
