@@ -31,6 +31,7 @@ For these reasons, we focus external contributions on discussion, analysis, and 
 If you are invited by a Codex team member to contribute a PR, here is the recommended development workflow.
 
 - Create a _topic branch_ from `main` - e.g. `feat/interactive-prompt`.
+- Sync `main` from upstream before starting: `just sync-upstream` (see [`SYNC_UPSTREAM.md`](../SYNC_UPSTREAM.md)).
 - Keep your changes focused. Multiple unrelated fixes should be opened as separate PRs.
 - Ensure your change is free of lint warnings and test failures.
 

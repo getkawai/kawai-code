@@ -61,6 +61,10 @@ bazel-lock-update:
 bazel-lock-check:
     ./scripts/check-module-bazel-lock.sh
 
+[no-cd]
+sync-upstream:
+    ./scripts/sync-upstream.sh
+
 bazel-test:
     bazel test //... --keep_going
 
