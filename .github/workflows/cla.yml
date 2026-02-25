@@ -18,6 +18,40 @@ jobs:
     if: ${{ contains(fromJson('["openai/codex","getkawai/kawai-code"]'), github.repository) }}
     runs-on: ubuntu-latest
     steps:
+      - name: Ensure CLA signatures branch exists
+        uses: actions/github-script@v8
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const branch = "cla-signatures";
+            const ref = `heads/${branch}`;
+
+            try {
+              await github.rest.git.getRef({ owner, repo, ref });
+              core.info(`Branch ${branch} already exists`);
+              return;
+            } catch (error) {
+              if (error.status !== 404) {
+                throw error;
+              }
+            }
+
+            const defaultBranch = context.payload.repository?.default_branch || "main";
+            const defaultRef = await github.rest.git.getRef({
+              owner,
+              repo,
+              ref: `heads/${defaultBranch}`,
+            });
+            await github.rest.git.createRef({
+              owner,
+              repo,
+              ref: `refs/heads/${branch}`,
+              sha: defaultRef.data.object.sha,
+            });
+            core.info(`Created branch ${branch} from ${defaultBranch}`);
+
       - uses: contributor-assistant/github-action@v2.6.1
         # Run on close only if the PR was merged. This will lock the PR to preserve
         # the CLA agreement. We don't want to lock PRs that have been closed without

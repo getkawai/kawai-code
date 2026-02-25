@@ -9,6 +9,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -97,9 +98,36 @@ def resolve_release_workflow(version: str) -> dict:
         text=True,
     )
     workflow = json.loads(stdout or "null")
-    if not workflow:
-        raise RuntimeError(f"Unable to find rust-release workflow for version {version}.")
-    return workflow
+    if workflow:
+        return workflow
+
+    # Fallback for forks/rebranded repos that do not cut rust-v* branches.
+    fallback_stdout = subprocess.check_output(
+        [
+            "gh",
+            "run",
+            "list",
+            "--json",
+            "workflowName,url,headSha,conclusion",
+            "--workflow",
+            WORKFLOW_NAME,
+            "--jq",
+            "map(select(.conclusion == \"success\")) | first(.[])",
+        ],
+        cwd=REPO_ROOT,
+        text=True,
+    )
+    fallback_workflow = json.loads(fallback_stdout or "null")
+    if fallback_workflow:
+        print(
+            f"warning: unable to find rust-v{version}; using latest successful rust-release workflow instead",
+            file=sys.stderr,
+        )
+        return fallback_workflow
+
+    raise RuntimeError(
+        f"Unable to find rust-release workflow for version {version} or any successful fallback run."
+    )
 
 
 def resolve_workflow_url(version: str, override: str | None) -> tuple[str, str | None]:
